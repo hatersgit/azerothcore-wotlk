@@ -29,6 +29,8 @@
 
 enum WarriorSpells
 {
+    SPELL_WARRIOR_RAMPAGE                         = 192006,
+    SPELL_WARRIOR_RAMPAGE_BLEED                   = 192007,
     SPELL_WARRIOR_INTERVENE_TRIGGER                 = 59667,
     SPELL_WARRIOR_SPELL_REFLECTION                  = 23920,
     SPELL_WARRIOR_IMPROVED_SPELL_REFLECTION_TRIGGER = 59725,
@@ -1077,6 +1079,48 @@ class spell_warr_deep_wounds_aura : public AuraScript
     }
 };
 
+// 192006 - Rampage
+class spell_warr_rampage : public AuraScript
+{
+    PrepareAuraScript(spell_warr_rampage);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_WARRIOR_RAMPAGE_BLEED });
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Unit* caster = GetTarget();
+        if (!caster)
+            return;
+
+        DamageInfo* damageInfo = eventInfo.GetDamageInfo();
+        if (!damageInfo || !damageInfo->GetDamage())
+        {
+            RefreshDuration();
+            return;
+        }
+
+        Unit* target = eventInfo.GetActionTarget();
+        if (!target)
+            return;
+
+        int32 basepoints = CalculatePct(static_cast<int32>(damageInfo->GetDamage()), 35);
+        if (basepoints <= 0)
+            return;
+
+        caster->CastCustomSpell(target, SPELL_WARRIOR_RAMPAGE_BLEED, &basepoints, nullptr, nullptr, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_warr_rampage::HandleProc, EFFECT_2, SPELL_AURA_DUMMY);
+    }
+};
+
 // Warrior T10 Melee 4P Bonus - extra effects for Sudden Death/Bloodsurge procs
 class spell_warr_extra_proc : public AuraScript
 {
@@ -1253,6 +1297,7 @@ void AddSC_warrior_spell_scripts()
     RegisterSpellScript(spell_war_sudden_death_aura);
     RegisterSpellScript(spell_warr_second_wind);
     RegisterSpellScript(spell_warr_deep_wounds_aura);
+    RegisterSpellScript(spell_warr_rampage);
     RegisterSpellScript(spell_warr_extra_proc);
     RegisterSpellScript(spell_warr_sword_and_board);
     RegisterSpellScript(spell_warr_glyph_of_blocking);
