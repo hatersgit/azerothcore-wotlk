@@ -2234,6 +2234,7 @@ public:
 
     void UpdateWeaponDependentAuras(WeaponAttackType attackType);
     void ApplyItemDependentAuras(Item* item, bool apply);
+    void ReevaluateCasterAuraSpellDependentPassives(uint32 auraSpellId);
 
     bool CheckAttackFitToAuraRequirement(WeaponAttackType attackType, AuraEffect const* aurEff) const override;
 

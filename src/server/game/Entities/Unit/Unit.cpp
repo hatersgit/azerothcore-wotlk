@@ -75,6 +75,11 @@
 #include <algorithm>
 #include <cmath>
 
+namespace
+{
+constexpr uint32 SPELL_HUNTER_PET_SUMMONED_STATE = 192005;
+}
+
 float baseMoveSpeed[MAX_MOVE_TYPE] =
 {
     2.5f,                  // MOVE_WALK
@@ -4800,6 +4805,9 @@ void Unit::_ApplyAura(AuraApplication* aurApp, uint8 effMask)
     }
 
     sScriptMgr->OnAuraApply(this, aura);
+
+    if (IsPlayer())
+        ToPlayer()->ReevaluateCasterAuraSpellDependentPassives(spellInfo->Id);
 }
 
 // removes aura application from lists and unapplies effects
@@ -4896,6 +4904,9 @@ void Unit::_UnapplyAura(AuraApplicationMap::iterator& i, AuraRemoveMode removeMo
 
     if (this->ToCreature() && this->ToCreature()->IsAIEnabled)
         this->ToCreature()->AI()->OnAuraRemove(aurApp, removeMode);
+
+    if (IsPlayer())
+        ToPlayer()->ReevaluateCasterAuraSpellDependentPassives(aura->GetSpellInfo()->Id);
 }
 
 void Unit::_UnapplyAura(AuraApplication* aurApp, AuraRemoveMode removeMode)
@@ -7842,6 +7853,9 @@ void Unit::SetMinion(Minion* minion, bool apply)
 
             if (spellInfo && spellInfo->IsCooldownStartedOnEvent())
                 ToPlayer()->AddSpellAndCategoryCooldowns(spellInfo, 0, nullptr, true);
+
+            if (minion->IsPet() && minion->ToPet()->getPetType() == HUNTER_PET)
+                ToPlayer()->CastSpell(ToPlayer(), SPELL_HUNTER_PET_SUMMONED_STATE, true);
         }
     }
     else
@@ -7886,6 +7900,9 @@ void Unit::SetMinion(Minion* minion, bool apply)
             // Remove infinity cooldown
             if (spellInfo && spellInfo->IsCooldownStartedOnEvent())
                 ToPlayer()->SendCooldownEvent(spellInfo);
+
+            if (minion->IsPet() && minion->ToPet()->getPetType() == HUNTER_PET)
+                ToPlayer()->RemoveAurasDueToSpell(SPELL_HUNTER_PET_SUMMONED_STATE);
 
             // xinef: clear spell book
             if (m_Controlled.empty())

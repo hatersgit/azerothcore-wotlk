@@ -7116,6 +7116,60 @@ void Player::ApplyItemDependentAuras(Item* item, bool apply)
         RemoveItemDependentAurasAndCasts(item);
 }
 
+void Player::ReevaluateCasterAuraSpellDependentPassives(uint32 auraSpellId)
+{
+    for (auto [spellId, playerSpell] : GetSpellMap())
+    {
+        if (playerSpell->State == PLAYERSPELL_REMOVED)
+            continue;
+
+        SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
+        if (!spellInfo || !spellInfo->IsPassive())
+            continue;
+
+        bool matchesRequiredAura = sSpellMgr->GetSpellIdForDifficulty(spellInfo->CasterAuraSpell, this) == auraSpellId;
+        bool matchesExcludedAura = sSpellMgr->GetSpellIdForDifficulty(spellInfo->ExcludeCasterAuraSpell, this) == auraSpellId;
+        if (!matchesRequiredAura && !matchesExcludedAura)
+            continue;
+
+        bool meetsAuraRequirement = !spellInfo->CasterAuraSpell || HasAura(sSpellMgr->GetSpellIdForDifficulty(spellInfo->CasterAuraSpell, this));
+        bool meetsAuraExclusion = !spellInfo->ExcludeCasterAuraSpell || !HasAura(sSpellMgr->GetSpellIdForDifficulty(spellInfo->ExcludeCasterAuraSpell, this));
+        bool shouldBeActive = meetsAuraRequirement && meetsAuraExclusion;
+
+        if (shouldBeActive && !HasAura(spellId))
+            AddAura(spellId, this);
+        else if (!shouldBeActive && HasAura(spellId))
+            RemoveOwnedAura(spellId);
+    }
+
+    for (auto [spellId, playerTalent] : GetTalentMap())
+    {
+        if (playerTalent->State == PLAYERSPELL_REMOVED)
+            continue;
+
+        if (!playerTalent->IsInSpec(GetActiveSpec()))
+            continue;
+
+        SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
+        if (!spellInfo || !spellInfo->IsPassive())
+            continue;
+
+        bool matchesRequiredAura = sSpellMgr->GetSpellIdForDifficulty(spellInfo->CasterAuraSpell, this) == auraSpellId;
+        bool matchesExcludedAura = sSpellMgr->GetSpellIdForDifficulty(spellInfo->ExcludeCasterAuraSpell, this) == auraSpellId;
+        if (!matchesRequiredAura && !matchesExcludedAura)
+            continue;
+
+        bool meetsAuraRequirement = !spellInfo->CasterAuraSpell || HasAura(sSpellMgr->GetSpellIdForDifficulty(spellInfo->CasterAuraSpell, this));
+        bool meetsAuraExclusion = !spellInfo->ExcludeCasterAuraSpell || !HasAura(sSpellMgr->GetSpellIdForDifficulty(spellInfo->ExcludeCasterAuraSpell, this));
+        bool shouldBeActive = meetsAuraRequirement && meetsAuraExclusion;
+
+        if (shouldBeActive && !HasAura(spellId))
+            AddAura(spellId, this);
+        else if (!shouldBeActive && HasAura(spellId))
+            RemoveOwnedAura(spellId);
+    }
+}
+
 bool Player::CheckAttackFitToAuraRequirement(WeaponAttackType attackType, AuraEffect const* aurEff) const
 {
     SpellInfo const* spellInfo = aurEff->GetSpellInfo();
@@ -7132,9 +7186,7 @@ bool Player::CheckAttackFitToAuraRequirement(WeaponAttackType attackType, AuraEf
 SpellSchoolMask Player::GetMeleeDamageSchoolMask(WeaponAttackType attackType /*= BASE_ATTACK*/, uint8 damageIndex /*= 0*/) const
 {
     if (Item const* weapon = GetWeaponForAttack(attackType, true))
-    {
         return SpellSchoolMask(1 << weapon->GetTemplate()->Damage[damageIndex].DamageType);
-    }
 
     return SPELL_SCHOOL_MASK_NORMAL;
 }
@@ -7150,27 +7202,20 @@ void Player::ApplyItemEquipSpell(Item* item, bool apply, bool form_change)
 
     for (auto const& spellData : proto->Spells)
     {
-         // no spell
         if (!spellData.SpellId)
             continue;
 
-        // wrong triggering type
         if (apply)
         {
-            // Only apply "On Equip" spells
             if (spellData.SpellTrigger != ITEM_SPELLTRIGGER_ON_EQUIP)
                 continue;
         }
         else
         {
-            // Do not remove "Use" spells in these special cases:
-            // 1. During form changes (e.g., druid shapeshifting)
-            // 2. When the spell comes from an item with negative charges, which means its effect should persist after the item is consumed or removed.
             if (spellData.SpellTrigger == ITEM_SPELLTRIGGER_ON_USE && (form_change || spellData.SpellCharges < 0))
                 continue;
         }
 
-        // check if it is valid spell
         SpellInfo const* spellproto = sSpellMgr->GetSpellInfo(spellData.SpellId);
         if (!spellproto)
             continue;
@@ -12622,7 +12667,7 @@ void Player::RemoveItemDependentAurasAndCasts(Item* pItem)
     // currently casted spells can be dependent from item
     for (uint32 i = 0; i < CURRENT_MAX_SPELL; ++i)
         if (Spell* spell = GetCurrentSpell(CurrentSpellTypes(i)))
-            if (spell->getState() != SPELL_STATE_DELAYED && !HasItemFitToSpellRequirements(spell->m_spellInfo, pItem))
+        if (spell->getState() != SPELL_STATE_DELAYED && !HasItemFitToSpellRequirements(spell->m_spellInfo, pItem))
                 InterruptSpell(CurrentSpellTypes(i));
 }
 
