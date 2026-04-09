@@ -54,7 +54,10 @@ enum RogueSpells
     SPELL_ROGUE_OVERKILL_TRIGGERED              = 58427,
     SPELL_ROGUE_HONOR_AMONG_THIEVES_PROC        = 52916,
     SPELL_ROGUE_HONOR_AMONG_THIEVES_TRIGGERED   = 51699,
-    SPELL_ROGUE_COLD_BLOOD                      = 14177
+    SPELL_ROGUE_COLD_BLOOD                      = 14177,
+    // hater
+    SPELL_ROGUE_SWITCHEROO                      = 192000,
+    SPELL_ROGUE_SWITCHEROO_TELEPORT             = 192001,
 };
 
 enum RogueSpellIcons
@@ -1164,6 +1167,37 @@ class spell_rog_mutilate : public SpellScript
     }
 };
 
+// hater
+// 192000 - Switcheroo
+class spell_rog_switcheroo : public SpellScript
+{
+    PrepareSpellScript(spell_rog_switcheroo);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_ROGUE_SWITCHEROO_TELEPORT });
+    }
+
+    void HandleDummy(SpellEffIndex /*effIndex*/)
+    {
+        Unit* caster = GetCaster();
+        Unit* target = GetHitUnit();
+        if (!caster || !target || caster == target)
+            return;
+
+        Position casterPos = caster->GetPosition();
+        Position targetPos = target->GetPosition();
+
+        caster->CastSpell(targetPos.GetPositionX(), targetPos.GetPositionY(), targetPos.GetPositionZ(), SPELL_ROGUE_SWITCHEROO_TELEPORT, true);
+        target->CastSpell(casterPos.GetPositionX(), casterPos.GetPositionY(), casterPos.GetPositionZ(), SPELL_ROGUE_SWITCHEROO_TELEPORT, true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_rog_switcheroo::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+};
+
 void AddSC_rogue_spell_scripts()
 {
     RegisterSpellScript(spell_rog_savage_combat);
@@ -1177,6 +1211,7 @@ void AddSC_rogue_spell_scripts()
     RegisterSpellScript(spell_rog_prey_on_the_weak);
     RegisterSpellScript(spell_rog_rupture);
     RegisterSpellScript(spell_rog_shiv);
+    RegisterSpellScript(spell_rog_switcheroo);
     RegisterSpellAndAuraScriptPair(spell_rog_tricks_of_the_trade, spell_rog_tricks_of_the_trade_aura);
     RegisterSpellScript(spell_rog_tricks_of_the_trade_proc);
     RegisterSpellScript(spell_rog_pickpocket);

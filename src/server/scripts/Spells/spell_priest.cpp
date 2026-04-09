@@ -16,6 +16,7 @@
  */
 
 #include "GridNotifiers.h"
+#include "ObjectAccessor.h"
 #include "Player.h"
 #include "SpellAuraEffects.h"
 #include "SpellMgr.h"
@@ -55,7 +56,11 @@ enum PriestSpells
     SPELL_GENERIC_BATTLEGROUND_DAMPENING            = 74411,
     SPELL_PRIEST_TWIN_DISCIPLINE_R1                 = 47586,
     SPELL_PRIEST_SPIRITUAL_HEALING_R1               = 14898,
-    SPELL_PRIEST_DIVINE_PROVIDENCE_R1               = 47562
+    SPELL_PRIEST_DIVINE_PROVIDENCE_R1               = 47562,
+
+    // hater
+    SPELL_PRIEST_HOLY_WORD_TOTALITY = 192002,
+    SPELL_PRIEST_HOLY_WORD_TOTALITY_DAMAGE = 192003,
 };
 
 enum PriestSpellIcons
@@ -1405,6 +1410,64 @@ class spell_pri_blessed_recovery : public AuraScript
     }
 };
 
+// 192002 - Holy Word: Totality
+class spell_pri_holy_word_totality : public AuraScript
+{
+    PrepareAuraScript(spell_pri_holy_word_totality);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_PRIEST_HOLY_WORD_TOTALITY_DAMAGE });
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        HealInfo* healInfo = eventInfo.GetHealInfo();
+        if (!healInfo)
+            return false;
+
+        Unit* healTarget = healInfo->GetTarget();
+        Unit* caster = eventInfo.GetActor();
+        if (!healTarget || !caster)
+            return false;
+
+        uint32 overheal = healInfo->GetHeal() - healInfo->GetEffectiveHeal();
+        if (!overheal)
+            return false;
+
+        Unit* target = ObjectAccessor::GetUnit(*healTarget, healTarget->GetTarget());
+        return target && caster->IsValidAttackTarget(target);
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        HealInfo* healInfo = eventInfo.GetHealInfo();
+        Unit* caster = eventInfo.GetActor();
+        Unit* healTarget = healInfo ? healInfo->GetTarget() : nullptr;
+        if (!healInfo || !caster || !healTarget)
+            return;
+
+        Unit* target = ObjectAccessor::GetUnit(*healTarget, healTarget->GetTarget());
+        if (!target || !caster->IsValidAttackTarget(target))
+            return;
+
+        int32 damage = CalculatePct(static_cast<int32>(healInfo->GetHeal() - healInfo->GetEffectiveHeal()), 50);
+        if (damage <= 0)
+            return;
+
+        healTarget->CastCustomSpell(SPELL_PRIEST_HOLY_WORD_TOTALITY_DAMAGE, SPELLVALUE_BASE_POINT0, damage, target, true, nullptr, aurEff, caster->GetGUID());
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_pri_holy_word_totality::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_pri_holy_word_totality::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+
 void AddSC_priest_spell_scripts()
 {
     RegisterSpellScript(spell_pri_shadowfiend_scaling);
@@ -1437,6 +1500,7 @@ void AddSC_priest_spell_scripts()
     // Proc system scripts
     RegisterSpellScript(spell_pri_aq_3p_bonus);
     RegisterSpellScript(spell_pri_blessed_recovery);
+    RegisterSpellScript(spell_pri_holy_word_totality);
     RegisterSpellScript(spell_pri_imp_shadowform);
     RegisterSpellScript(spell_pri_improved_spirit_tap);
     RegisterSpellScript(spell_pri_item_t6_trinket);
